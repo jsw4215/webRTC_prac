@@ -24,11 +24,9 @@ const Rtcview = () => {
   let pcObj = {};
   const videoGrid = useRef();
   const myVideo = useRef();
+  const peerVideoTemp = useRef();
   const [users, setUsers] = useState(1);
-  
-
-  const myFace = document.getElementsByClassName("myFace");
-  //const camerasSelect = document.getElementsByClassName("cameras");
+    //const camerasSelect = document.getElementsByClassName("cameras");
 
   useEffect(() => {
     socket = io(ENDPOINT, {
@@ -73,6 +71,7 @@ const Rtcview = () => {
     });
 
     socket.on("offer", async (offer, remoteSocketId, remoteNickname) => {
+      console.log("client on.offer : ", remoteNickname)
       try {
         const newPC = createConnection(remoteSocketId, remoteNickname);
         await newPC.setRemoteDescription(offer);
@@ -89,9 +88,20 @@ const Rtcview = () => {
       await pcObj[remoteSocketId].setRemoteDescription(answer);
     });
   
+    socket.on("ice", async (ice, remoteSocketId) => {
+      await pcObj[remoteSocketId].addIceCandidate(ice);
+    });
+
+    socket.on("leave_room", (leavedSocketId, nickname) => {
+      removeVideo(leavedSocketId);
+      writeChat(`notice! ${nickname} leaved the room.`, NOTICE_CN);
+      --peopleInRoom;
+      //sortStreams();
+    });
+  
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ENDPOINT, location.search]);
+  }, []);
 
   function writeChat(message, className = null) {
 
@@ -142,9 +152,9 @@ const Rtcview = () => {
       );
       
       // stream을 mute하는 것이 아니라 HTML video element를 mute한다.
-      console.log("myVideo : ", myStream)
+      console.log("myVideo : ", myStream, myVideo)
       addVideoStream(myVideo.current, myStream);
-      videoGrid.current.append(myVideo.current);
+      //videoGrid.current.append(myVideo.current);
 
 
       if (!deviceId) {
@@ -214,15 +224,17 @@ const Rtcview = () => {
   
   function paintPeerFace(peerStream, id, remoteNickname) {
 
-    console.log("peerStream : ", peerStream);
+    console.log("peerStream : ", peerStream, id, remoteNickname);
 
     const peerVideo = document.createElement("video");
     console.log("const peerVideo : ", peerVideo)
     peerVideo.setAttribute("autoplay", "playsinline");
-    peerVideo.autoplay = true;
-    peerVideo.playsInline = true;
+    // peerVideo.autoplay = true;
+    // peerVideo.playsInline = true;
     peerVideo.width = "400";
     peerVideo.height = "400";
+    peerVideo.className = id;
+
     console.log("const peerVideo : ", peerVideo);
     
     addVideoStream(peerVideo, peerStream);
@@ -246,8 +258,20 @@ const Rtcview = () => {
   //   const streamArr = streams.querySelectorAll("div");
   //   streamArr.forEach((stream) => (stream.className = `people${peopleInRoom}`));
   // }
-  
 
+  function removeVideo(leavedSocketId) {
+    const video = document.querySelectorAll("video");
+    console.log("removeVideo : ", leavedSocketId, video)
+   let removeVideo;
+      for (let i = 0; i < video.length; i++) {
+        if (video[i].className === leavedSocketId) {
+          removeVideo = video[i];
+        }
+      }
+
+      removeVideo.remove();
+  }
+  
 
   return (
     <div className="App">
@@ -277,6 +301,13 @@ const Rtcview = () => {
                 autoPlay
                 playsInline
                 className="myFace"
+                style={{ width: "400", height: "400" }}
+              ></video>
+              <video
+                ref={peerVideoTemp}
+                autoPlay
+                playsInline
+                className="peer1"
                 style={{ width: "400", height: "400" }}
               ></video>
               <h3>userNickName</h3>
